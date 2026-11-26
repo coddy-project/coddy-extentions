@@ -1,0 +1,31 @@
+name: Test
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: coddy-extentions
+      - uses: actions/checkout@v4
+        with:
+          repository: coddy-project/coddy-agent
+          ref: main
+          path: coddy-agent
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install coddy-agent UI dependencies
+        working-directory: coddy-agent/external/ui
+        run: npm install
+      - name: Install example test dependencies
+        working-directory: coddy-extentions
+        run: npm install
+      - name: Test examples
+        working-directory: coddy-extentions
+        env:
+          CODDY_AGENT_UI: ${{ github.workspace }}/coddy-agent/external/ui
+        run: npm test
