@@ -449,7 +449,7 @@ export function activate(coddy) {
     panel = coddy.ui.registerPanel({
       id: "ok-coddy",
       title: coddy.i18n.t("title"),
-      placement: "drawer",
+      placement: "slide-over",
       // The panel's own description extends the API: other extensions may
       // fill these hooks through coddy.hooks.register.
       hooks: ["tricks", "footer"],

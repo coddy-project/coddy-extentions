@@ -1,8 +1,23 @@
 export function activate(coddy) {
+  // A colour input only accepts #rrggbb, so the HSL transforms of the host
+  // are converted back to hex for the per-token pickers.
+  const hslToHex = ({ h, s, l }) => {
+    const sat = s / 100;
+    const light = l / 100;
+    const k = (n) => (n + h / 30) % 12;
+    const a = sat * Math.min(light, 1 - light);
+    const f = (n) =>
+      light - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+    const byte = (v) =>
+      Math.round(v * 255)
+        .toString(16)
+        .padStart(2, "0");
+    return `#${byte(f(0))}${byte(f(8))}${byte(f(4))}`;
+  };
   coddy.i18n.registerMessages("en", {
     title: "Theme Lab",
     reset: "Reset",
-    note: "Overrides last until the extension is disabled or the page reloads.",
+    note: "The shift and the picked colours persist in the server configuration. Reset clears them.",
     shiftAll: "Shift every colour",
     hue: "Hue",
     saturation: "Saturation",
@@ -12,39 +27,101 @@ export function activate(coddy) {
   coddy.i18n.registerMessages("ru", {
     title: "Лаборатория тем",
     reset: "Сбросить",
-    note: "Изменения цветов действуют, пока расширение не отключат или страницу не перезагрузят.",
+    note: "Сдвиг и выбранные цвета сохраняются в конфигурации сервера. Сброс очищает их.",
     shiftAll: "Сдвинуть все цвета",
     hue: "Тон",
     saturation: "Насыщенность",
-    lightness: "Светлота",
+    lightness: "Яркость",
     tokens: "Токены",
   });
   // The app repaints from its whole token layer. The lab seeds every
   // colour-valued token from `theme.tokens()` and shifts them all at once,
-  // with a colour input per token for the fine moves.
+  // with a colour input per token for the fine moves. The shift and the
+  // picked tokens persist under extension_values.theme-lab of the server
+  // configuration, so a reload or another browser of the same server
+  // restores them.
   let base = {};
   let tones = {};
   let custom = {};
   const shift = { hue: 0, sat: 100, light: 0 };
   let handle = null;
-  const seed = () => {
+  // readBase re-reads the tokens of the active theme and keeps the picks
+  // that still name one; seed is the full reset the Reset button runs.
+  const readBase = () => {
     base = coddy.theme.tokens();
     tones = {};
-    custom = {};
     for (const name of Object.keys(base)) {
       const hsl = coddy.theme.parseColor(base[name]);
       if (hsl) tones[name] = hsl;
     }
+    for (const name of Object.keys(custom)) if (!tones[name]) delete custom[name];
+  };
+  const seed = () => {
+    readBase();
+    custom = {};
     shift.hue = 0;
     shift.sat = 100;
     shift.light = 0;
   };
   seed();
+
+  let saveTimer = null;
+  const save = () => {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => {
+      const state = JSON.stringify({ shift: { ...shift }, custom: { ...custom } });
+      coddy.config
+        .set("extension_values.theme-lab.state", state)
+        .catch(() => {});
+    }, 600);
+  };
+
+  const restore = async () => {
+    let raw = null;
+    try {
+      raw = await coddy.config.get("extension_values.theme-lab.state");
+    } catch {
+      return;
+    }
+    if (typeof raw !== "string" || !raw) return;
+    let state = null;
+    try {
+      state = JSON.parse(raw);
+    } catch {
+      return;
+    }
+    if (!state || typeof state !== "object") return;
+    const empty =
+      (!state.custom || Object.keys(state.custom).length === 0) &&
+      (!state.shift ||
+        ((state.shift.hue ?? 0) === 0 &&
+          (state.shift.sat ?? 100) === 100 &&
+          (state.shift.light ?? 0) === 0));
+    if (empty) return;
+    if (state.shift && typeof state.shift === "object") {
+      shift.hue = Number(state.shift.hue ?? 0) || 0;
+      shift.sat = Number(state.shift.sat ?? 100) || 100;
+      shift.light = Number(state.shift.light ?? 0) || 0;
+    }
+    if (state.custom && typeof state.custom === "object") {
+      for (const name of Object.keys(state.custom)) {
+        if (typeof state.custom[name] === "string" && tones[name])
+          custom[name] = state.custom[name];
+      }
+    }
+    apply();
+  };
+  const neutral = () =>
+    shift.hue === 0 &&
+    shift.sat === 100 &&
+    shift.light === 0 &&
+    Object.keys(custom).length === 0;
   const build = () => {
+    if (neutral()) return null;
     const out = {};
     for (const name of Object.keys(tones)) {
       if (custom[name]) out[name] = custom[name];
-      else {
+      else if (shift.hue !== 0 || shift.sat !== 100 || shift.light !== 0) {
         const t = tones[name];
         out[name] = coddy.theme.formatColor({
           h: (t.h + shift.hue + 360) % 360,
@@ -57,9 +134,25 @@ export function activate(coddy) {
   };
   const apply = () => {
     const out = build();
-    if (handle) handle.update(out);
+    if (!out) {
+      if (handle) {
+        handle.remove();
+        handle = null;
+      }
+    } else if (handle) handle.update(out);
     else handle = coddy.theme.override(out);
+    save();
   };
+  void restore();
+
+  // The shift and the picks are relative to the host theme, so when the
+  // operator switches themes the lab re-reads the base tokens of the new
+  // one and reapplies the same moves instead of freezing the old palette
+  // over every theme.
+  coddy.theme.onChange(() => {
+    readBase();
+    apply();
+  });
 
   const panel = coddy.ui.registerPanel({
     id: "theme-lab",
@@ -120,7 +213,9 @@ export function activate(coddy) {
           label.textContent = name;
           const picker = document.createElement("input");
           picker.type = "color";
-          picker.value = toHex(parse(base[name]));
+          picker.value = hslToHex(
+            coddy.theme.parseColor(base[name]) ?? { h: 0, s: 0, l: 0 },
+          );
           picker.addEventListener(
             "input",
             () => {
@@ -144,6 +239,7 @@ export function activate(coddy) {
               handle = null;
             }
             seed();
+            coddy.config.set("extension_values.theme-lab.state", "").catch(() => {});
             paint();
           },
           { signal: coddy.signal },

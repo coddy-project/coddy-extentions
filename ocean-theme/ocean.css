@@ -1,35 +1,47 @@
-/* Ocean is a dark palette layered over the shared token contract. */
-:root,
+/* Ocean shows the short way of writing a theme: name the few core colours
+   and derive every surface from them with color-mix. Tokens a theme leaves
+   out fall back to the dark palette that :root carries, so only what should
+   feel ocean needs a line here. */
+
 [data-theme="ext:ocean-theme/ocean"] {
+  /* The core palette: five colours the whole theme is derived from. */
   --bg: #082f49;
   --text: #e0f2fe;
   --muted: #7dd3fc;
   --accent: #38bdf8;
-  --coddy-on-accent-fg: #082f49;
-  --coddy-link: #7dd3fc;
-  --coddy-link-action: #38bdf8;
-  --coddy-link-action-hover: #bae6fd;
   --coddy-danger: #fb7185;
-  --nav: #0c4a6e;
-  --sidebar: #0c4a6e;
-  --coddy-glass-panel-bg: rgba(12, 74, 110, 0.88);
-  --coddy-glass-panel-border: rgba(125, 211, 252, 0.28);
-  --coddy-chat-header-bg: rgba(8, 47, 73, 0.9);
-  --coddy-surface-raised: #0c4a6e;
-  --coddy-surface-field: #075985;
-  --coddy-surface-inset: #075985;
-  --coddy-surface-muted: #0c4a6e;
-  --coddy-surface-subtle: #082f49;
-  --coddy-surface-sunken: #082f49;
-  --coddy-surface-gutter: #082f49;
-  --coddy-surface-code-bg: #075985;
-  --coddy-surface-code-fg: #e0f2fe;
-  --coddy-tip-bg: #0c4a6e;
-  --coddy-tip-border: rgba(125, 211, 252, 0.35);
-  --coddy-tip-fg: #e0f2fe;
-  --coddy-context-ring-fg: #38bdf8;
-  --coddy-context-ring-inner: #075985;
-  --bubble-user: #075985;
-  --coddy-bubble-user-bg: #075985;
-  --coddy-bubble-user-fg: #e0f2fe;
+
+  /* Foregrounds and links follow the core palette. */
+  --coddy-on-accent-fg: var(--bg);
+  --coddy-link: var(--muted);
+  --coddy-link-action: var(--accent);
+  --coddy-link-action-hover: color-mix(in srgb, var(--accent) 55%, var(--text));
+
+  /* Surfaces are the background lifted towards the text colour. */
+  --coddy-surface-raised: color-mix(in srgb, var(--bg) 88%, var(--text) 12%);
+  --coddy-surface-field: color-mix(in srgb, var(--bg) 82%, var(--accent) 18%);
+  --coddy-surface-inset: var(--coddy-surface-field);
+  --coddy-surface-muted: color-mix(in srgb, var(--bg) 88%, var(--text) 12%);
+  --coddy-surface-subtle: var(--bg);
+  --coddy-surface-sunken: var(--bg);
+  --coddy-surface-gutter: var(--bg);
+  --coddy-surface-code-bg: var(--coddy-surface-field);
+  --coddy-surface-code-fg: var(--text);
+
+  /* Glass and chrome keep the frost of the dark theme but tinted ocean. */
+  --nav: color-mix(in srgb, var(--bg) 75%, transparent);
+  --sidebar: color-mix(in srgb, var(--bg) 85%, transparent);
+  --coddy-glass-panel-bg: color-mix(in srgb, var(--bg) 88%, transparent);
+  --coddy-glass-panel-border: color-mix(in srgb, var(--muted) 28%, transparent);
+  --coddy-chat-header-bg: color-mix(in srgb, var(--bg) 90%, transparent);
+
+  /* Tooltips, the context ring and the user bubble. */
+  --coddy-tip-bg: var(--coddy-surface-raised);
+  --coddy-tip-border: color-mix(in srgb, var(--muted) 35%, transparent);
+  --coddy-tip-fg: var(--text);
+  --coddy-context-ring-fg: var(--accent);
+  --coddy-context-ring-inner: var(--coddy-surface-field);
+  --bubble-user: var(--coddy-surface-field);
+  --coddy-bubble-user-bg: var(--coddy-surface-field);
+  --coddy-bubble-user-fg: var(--text);
 }
